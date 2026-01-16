@@ -1,0 +1,58 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "develop" ] [cite: 42]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+jobs:
+  ci-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code [cite: 34]
+        uses: actions/checkout@v3
+
+      - name: Setup Node 18 [cite: 35]
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies [cite: 36]
+        run: npm install
+
+      - name: Run Tests [cite: 37]
+        run: npm test
+
+      - name: Lint (Audit) [cite: 38]
+        run: npm audit --audit-level=critical || true
+
+  build-push-scan:
+    needs: ci-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' [cite: 49]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }} [cite: 48]
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image [cite: 45, 46]
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/examen-node:latest
+
+      # Scan Trivy [cite: 56, 61]
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ secrets.DOCKER_USERNAME }}/examen-node:latest'
+          format: 'table'
+          severity: 'HIGH,CRITICAL' [cite: 60]
+          exit-code: 1
